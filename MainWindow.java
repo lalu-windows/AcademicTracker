@@ -99,6 +99,7 @@ private final JPanel subjectPanel = new JPanel();
     subjectPanel.repaint();
 
 		}
+//adding delete button gui 
 		private void deleteSubject(int index){
     String name = subjects.get(index);
     int ok = JOptionPane.showConfirmDialog(this, "Delete " + name + "?", "Confirm", JOptionPane.YES_NO_OPTION);
@@ -213,13 +214,174 @@ private final JPanel subjectPanel = new JPanel();
 		}
 	}
 
-	// grade gui
-	/*static class GradeGUI extends JPanel {
-		public GradeGUI(){
-			setLayout(new BorderLayout());
-			add(new JLabel("Grades coming soon", JLabel.CENTER), BorderLayout.CENTER);
+	// // grade gui
+static class GradeGUI extends JPanel {
+
+	private final List<String> subjects = new ArrayList<>();
+	private final List<Integer> marks = new ArrayList<>();
+	private final List<Integer> tot = new ArrayList<>();
+	private final JComboBox<String> subjectdrop = new JComboBox<>();
+	private final JPanel subjectPanel = new JPanel();
+
+	public GradeGUI(){
+		setLayout(new BorderLayout(10,10));
+		setBorder(BorderFactory.createEmptyBorder(15,15,15,15));
+
+		JLabel titlelabel = new JLabel("Grade tracker", JLabel.CENTER);
+		titlelabel.setFont(new Font("SansSerif", Font.BOLD, 25));
+		add(titlelabel, BorderLayout.NORTH);
+
+		subjectPanel.setLayout(new BoxLayout(subjectPanel, BoxLayout.Y_AXIS));
+		add(subjectPanel, BorderLayout.CENTER);
+
+		for(Object[] r : DBManager.loadAllGrades()){
+			subjects.add((String) r[0]);
+			marks.add((Integer) r[1]);
+			tot.add((Integer) r[2]);
+			subjectdrop.addItem((String) r[0]);
 		}
-	}*/
+
+		JPanel bottom = new JPanel(new GridLayout(2,1));
+		bottom.add(buildAddPanel());
+		bottom.add(buildUpdatePanel());
+		add(bottom, BorderLayout.SOUTH);
+
+		refresh(); // first draw
+	}
+
+	// redraws subjectpanel
+	public void refresh(){
+		subjectPanel.removeAll();
+
+		subjectPanel.add(Box.createVerticalGlue());
+		for(int i = 0; i < subjects.size(); i++){
+			final int idx = i;
+			subjectPanel.add(subrow(subjects.get(i), marks.get(i), tot.get(i), () -> deleteSubject(idx)));
+			subjectPanel.add(Box.createRigidArea(new Dimension(0,8)));
+		}
+		subjectPanel.add(Box.createVerticalGlue());
+
+		subjectPanel.revalidate();
+		subjectPanel.repaint();
+	}
+
+	// Add subject section
+	private JPanel buildAddPanel(){
+		JPanel addpan = new JPanel(new FlowLayout(FlowLayout.LEFT,10,10));
+		addpan.setBorder(BorderFactory.createTitledBorder("Add subject"));
+
+		JTextField namefield = new JTextField(10);
+		JTextField marksfield = new JTextField(4);
+		JTextField totalfield = new JTextField(4);
+		JButton addbtn = new JButton("Add");
+
+		addbtn.addActionListener(e -> {
+			String name = namefield.getText().trim();
+			try{
+				int m = Integer.parseInt(marksfield.getText().trim());
+				int t = Integer.parseInt(totalfield.getText().trim());
+
+				if(name.isEmpty() || m < 0 || t <= 0 || m > t){
+					JOptionPane.showMessageDialog(this, "Enter a name and valid numbers", "Error", JOptionPane.ERROR_MESSAGE);
+					return;
+				}
+				if(subjects.contains(name)){
+					JOptionPane.showMessageDialog(this, "Subject already exists", "Error", JOptionPane.ERROR_MESSAGE);
+					return;
+				}
+
+				DBManager.insertGrade(name, m, t);
+				subjects.add(name);
+				marks.add(m);
+				tot.add(t);
+				subjectdrop.addItem(name);
+				refresh();
+
+				namefield.setText(""); marksfield.setText(""); totalfield.setText("");
+			}catch(NumberFormatException ex){
+				JOptionPane.showMessageDialog(this, "Please enter valid numbers!", "Error", JOptionPane.ERROR_MESSAGE);
+			}
+		});
+
+		addpan.add(new JLabel("Name: "));   addpan.add(namefield);
+		addpan.add(new JLabel("Marks: "));  addpan.add(marksfield);
+		addpan.add(new JLabel("Total: "));  addpan.add(totalfield);
+		addpan.add(addbtn);
+		return addpan;
+	}
+
+	// Update marks section
+	private JPanel buildUpdatePanel(){
+		JPanel updatepan = new JPanel(new FlowLayout(FlowLayout.LEFT,10,10));
+		updatepan.setBorder(BorderFactory.createTitledBorder("Update marks"));
+
+		JTextField marksfield = new JTextField(4);
+		JTextField totfield = new JTextField(4);
+		JButton updatebtn = new JButton("Update");
+
+		// autofill the text fields when a subject is selected
+		subjectdrop.addActionListener(e -> {
+			int index = subjectdrop.getSelectedIndex();
+			if(index < 0) return;
+			marksfield.setText(String.valueOf(marks.get(index)));
+			totfield.setText(String.valueOf(tot.get(index)));
+		});
+		if(subjectdrop.getItemCount() > 0) subjectdrop.setSelectedIndex(0);
+
+		updatebtn.addActionListener(e -> {
+			int index = subjectdrop.getSelectedIndex();
+			if(index < 0) return;
+			try{
+				int m = Integer.parseInt(marksfield.getText().trim());
+				int newtot = Integer.parseInt(totfield.getText().trim());
+
+				if(m < 0 || newtot <= 0){
+					JOptionPane.showMessageDialog(this, "Values must be positive", "Error", JOptionPane.ERROR_MESSAGE);
+					return;
+				}
+				if(m > newtot){
+					JOptionPane.showMessageDialog(this, "Marks cannot be greater than total", "Error", JOptionPane.ERROR_MESSAGE);
+					return;
+				}
+
+				marks.set(index, m);
+				tot.set(index, newtot);
+				DBManager.updateGrade(subjects.get(index), m, newtot);
+
+				refresh();
+			}
+			catch(NumberFormatException ex){
+				JOptionPane.showMessageDialog(this, "Please enter valid numbers!", "Error", JOptionPane.ERROR_MESSAGE);
+			}
+		});
+
+		updatepan.add(new JLabel("Subject: "));
+		updatepan.add(subjectdrop);
+		updatepan.add(new JLabel("Marks: "));
+		updatepan.add(marksfield);
+		updatepan.add(new JLabel("Total: "));
+		updatepan.add(totfield);
+		updatepan.add(updatebtn);
+
+		return updatepan;
+	}
+
+	private void deleteSubject(int index){
+		String name = subjects.get(index);
+		int ok = JOptionPane.showConfirmDialog(this, "Delete " + name + "?", "Confirm", JOptionPane.YES_NO_OPTION);
+		if(ok != JOptionPane.YES_OPTION) return;
+
+		DBManager.deleteGrade(name);
+		subjects.remove(index);
+		marks.remove(index);
+		tot.remove(index);
+		subjectdrop.removeItemAt(index);
+		refresh();
+	}
+}
+
+
+
 
 	// ---------- Main frame ----------
 	static class MainFrame extends JFrame {
@@ -233,7 +395,7 @@ private final JPanel subjectPanel = new JPanel();
 			JPanel cardpan = new JPanel(cardlay);
 
 			cardpan.add(new AttenGUI(), "ATTENDANCE");
-//			cardpan.add(new GradeGUI(), "GRADE");
+			cardpan.add(new GradeGUI(), "GRADE");
 
 			JPanel btnpan = new JPanel();
 			JButton attenbtn = new JButton("Attendance");
@@ -251,6 +413,7 @@ private final JPanel subjectPanel = new JPanel();
 
 	public static void main(String[] args){
     DBManager.createTable();
+    DBManager.createGradeTable();
 
     // seed default subjects only on the very first run
     if(DBManager.loadAll().isEmpty()){
@@ -261,6 +424,21 @@ private final JPanel subjectPanel = new JPanel();
         DBManager.insert("DE&LD", 28, 34);
         DBManager.insert("ETHICS", 25, 35);
     }
+
+    if(DBManager.loadAllGrades().isEmpty()){
+	    DBManager.insertGrade("TOC",78,100);
+            DBManager.insertGrade("OOP",98,100);
+            DBManager.insertGrade("MATHS",88,100);
+
+            DBManager.insertGrade("DSA",78,80);
+	    
+            DBManager.insertGrade("DE&LD",58,60);
+
+            DBManager.insertGrade("ETHICS",58,80);
+    }
+
+
+
 
     SwingUtilities.invokeLater(() -> new MainFrame().setVisible(true));
 }
